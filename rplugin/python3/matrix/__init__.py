@@ -2,6 +2,7 @@ import neovim
 from matrix_client.client import MatrixClient
 from functools import partial
 import re
+import time
 from collections import deque
 
 class obj:
@@ -37,6 +38,7 @@ class IPythonPlugin(object):
     def __init__(self, vim):
         self.vim = vim
         self.buf = None
+        self.sendbuf = None
         self.client = None
 
     def create_outbuf(self):
@@ -44,13 +46,25 @@ class IPythonPlugin(object):
         if self.buf is not None:
             return
         w0 = vim.current.window
-        vim.command(":new")
+        vim.command("new")
         buf = vim.current.buffer
         buf.options["swapfile"] = False
         buf.options["buftype"] = "nofile"
         buf.name = "[matrix]"
-        vim.current.window = w0
         self.buf = buf
+
+    def create_sendbuf(self):
+        vim = self.vim
+        if self.sendbuf is not None:
+            return
+        w0 = vim.current.window
+        vim.command("2new")
+        buf = vim.current.buffer
+        buf.options["swapfile"] = False
+        buf.options["buftype"] = "nofile"
+        vim.command("inoremap <buffer> <silent> <expr> <cr> _matrix_cr()")
+        buf.name = "[matrix-send]"
+        self.sendbuf = buf
 
     def buf_write(self, data):
         #self.hl_handler.reset_sgr()
@@ -64,6 +78,12 @@ class IPythonPlugin(object):
 
         return lineidx
 
+    def format_time(self, basetime, age):
+        if age is None:
+            return "      "
+        t = time.localtime(basetime - age/1000)
+        return time.strftime("%H:%M:%S", t)
+
     def format_sender(self, sender):
         m = re_matrix.match(sender)
         if not m:
@@ -74,32 +94,46 @@ class IPythonPlugin(object):
             display = "@"+name[len("gitter_"):]
             return display, "GitterUser"
         if name.startswith("freenode_"):
-            display = name[len("freenode_"):]
+            display = "<"+name[len("freenode_"):]+">"
             return display, "FreenodeUser"
         if name == self.user:
             return name, "SelfUser"
         return name, "MatrixUser"
 
     def on_message(self, room, event):
+        basetime = time.time()
+        #self.buf_write(repr(event))
+        age = event.get("unsigned", {}).get("age")
+        timestr = self.format_time(basetime, age)
         if event['type'] == "m.room.member":
             if event['membership'] == "join":
                 self.buf_write("{0} joined".format(event['content']['displayname']))
         elif event['type'] == "m.room.message":
-            if event['content']['msgtype'] == "m.text":
-                name, hl = self.format_sender(event['sender'])
-                line = self.buf_write("{0}: {1}".format(name, event['content']['body']))
+            name, hl = self.format_sender(event['sender'])
+            if event['content']['msgtype'] in ["m.text", "m.notice"]:
+                line = self.buf_write("{} {}: {}".format(timestr, name, event['content']['body']))
+                o = len(timestr)+1
                 if hl:
-                    self.buf.add_highlight(hl, line, 0, len(name))
+                    self.buf.add_highlight(hl, line, o, o+len(name))
+                if event['content']['msgtype'] == "m.notice":
+                    self.buf.add_highlight("Comment", line, o+len(name)+1, -1)
+
             elif event['content']['msgtype'] == "m.emote":
-                self.buf_write("* {0} {1}".format(event['sender'], event['content']['body']))
+                line = self.buf_write("{} * {} {}".format(timestr, name, event['content']['body']))
+                o = len(timestr)+3
+                if hl:
+                    self.buf.add_highlight(hl, line, o, o+len(name))
+                self.buf.add_highlight("MatrixEmote", line, o+len(name)+1, -1)
             else:
-                self.buf_write("X " + event['content']['msgtype'])
+                line = self.buf_write("X " + event['content']['msgtype'])
+            self.buf.add_highlight("Number", line, 0, len(timestr))
         else:
             self.buf_write(event['type'])
 
     @neovim.command("MatrixConnect", sync=True)
     def matrix_connect(self):
         self.create_outbuf()
+        self.create_sendbuf()
         self.client = MatrixClient("https://matrix.org")
         user = self.vim.vars["matrix_user"]
         self.user = user
@@ -113,12 +147,12 @@ class IPythonPlugin(object):
         self.members = self.room.get_joined_members()
         self.room.backfill_previous_messages(limit=50)
 
-    @neovim.function("MatrixSend", sync=True)
+    @neovim.function("MatrixSend", sync=False)
     def matrix_send(self, args):
         text, = args
         self.room.send_text(text)
 
-    @neovim.function("MatrixMe", sync=True)
+    @neovim.function("MatrixMe", sync=False)
     def matrix_me(self, args):
         text, = args
         self.room.send_emote(text)
