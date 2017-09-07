@@ -108,6 +108,9 @@ class IPythonPlugin(object):
         if event['type'] == "m.room.member":
             if event['membership'] == "join":
                 self.buf_write("{0} joined".format(event['content']['displayname']))
+            # TODO: more events:
+            elif event['content'].get('displayname'):
+                self.buf_write("{} {}".format(event['content']['displayname'], event['membership']))
         elif event['type'] == "m.room.message":
             name, hl = self.format_sender(event['sender'])
             if event['content']['msgtype'] in ["m.text", "m.notice"]:
@@ -123,6 +126,7 @@ class IPythonPlugin(object):
                 o = len(timestr)+3
                 if hl:
                     self.buf.add_highlight(hl, line, o, o+len(name))
+                self.buf.add_highlight("MatrixEmote", line, o-2, o-1)
                 self.buf.add_highlight("MatrixEmote", line, o+len(name)+1, -1)
             else:
                 line = self.buf_write("X " + event['content']['msgtype'])
@@ -134,12 +138,18 @@ class IPythonPlugin(object):
     def matrix_connect(self):
         self.create_outbuf()
         self.create_sendbuf()
-        self.client = MatrixClient("https://matrix.org")
+        token = self.vim.vars.get("matrix_token")
         user = self.vim.vars["matrix_user"]
         self.user = user
         pw = self.vim.vars["matrix_passwd"]
-
-        token = self.client.login_with_password(username=user, password=pw)
+        if token is not None:
+            userid = self.vim.vars.get("matrix_userid")
+            self.client = MatrixClient("https://matrix.org", token=token, user_id=user)
+        else:
+            self.client = MatrixClient("https://matrix.org")
+            token = self.client.login_with_password(username=user, password=pw)
+            self.buf_write(token)
+            self.buf_write(self.client.user_id)
         self.room = self.client.join_room(self.vim.vars["matrix_room"])
 
         self.room.add_listener(partial(self.vim.async_call, ExclusiveHandler(self.on_message)))
