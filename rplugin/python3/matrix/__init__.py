@@ -113,15 +113,16 @@ class IPythonPlugin(object):
                 self.buf_write("{} {}".format(event['content']['displayname'], event['membership']))
         elif event['type'] == "m.room.message":
             name, hl = self.format_sender(event['sender'])
-            if event['content']['msgtype'] in ["m.text", "m.notice"]:
+            msgtype = event['content'].get('msgtype', 'NONE')
+            if msgtype in ["m.text", "m.notice"]:
                 line = self.buf_write("{} {}: {}".format(timestr, name, event['content']['body']))
                 o = len(timestr)+1
                 if hl:
                     self.buf.add_highlight(hl, line, o, o+len(name))
-                if event['content']['msgtype'] == "m.notice":
+                if msgtype == "m.notice":
                     self.buf.add_highlight("Comment", line, o+len(name)+1, -1)
 
-            elif event['content']['msgtype'] == "m.emote":
+            elif msgtype == "m.emote":
                 line = self.buf_write("{} * {} {}".format(timestr, name, event['content']['body']))
                 o = len(timestr)+3
                 if hl:
@@ -129,7 +130,7 @@ class IPythonPlugin(object):
                 self.buf.add_highlight("MatrixEmote", line, o-2, o-1)
                 self.buf.add_highlight("MatrixEmote", line, o+len(name)+1, -1)
             else:
-                line = self.buf_write("X " + event['content']['msgtype'])
+                line = self.buf_write("X " + msgtype)
             self.buf.add_highlight("Number", line, 0, len(timestr))
         else:
             self.buf_write(event['type'])
