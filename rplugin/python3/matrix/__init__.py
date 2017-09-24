@@ -41,7 +41,7 @@ class IPythonPlugin(object):
         self.sendbuf = None
         self.client = None
 
-    def create_outbuf(self):
+    def create_outbuf(self,name):
         vim = self.vim
         if self.buf is not None:
             return
@@ -50,7 +50,10 @@ class IPythonPlugin(object):
         buf = vim.current.buffer
         buf.options["swapfile"] = False
         buf.options["buftype"] = "nofile"
-        buf.name = "[matrix]"
+        vim.command("set showbreak=")
+        vim.command("set breakindent")
+        vim.command("set breakindentopt=shift:9")
+        buf.name = "[{}]".format(name)
         self.buf = buf
 
     def create_sendbuf(self):
@@ -106,11 +109,21 @@ class IPythonPlugin(object):
         age = event.get("unsigned", {}).get("age")
         timestr = self.format_time(basetime, age)
         if event['type'] == "m.room.member":
+            name, hl = self.format_sender(event['sender'])
+            displayname = event['content'].get('displayname') 
+            if displayname is not None:
+                who = "{} ({})".format(name, displayname)
+            else:
+                who = name
             if event['membership'] == "join":
-                self.buf_write("{0} joined".format(event['content']['displayname']))
-            # TODO: more events:
-            elif event['content'].get('displayname'):
-                self.buf_write("{} {}".format(event['content']['displayname'], event['membership']))
+                line = self.buf_write("{0} joined".format(who))
+            elif event['membership'] == "leave":
+                line = self.buf_write("{0} left".format(who))
+                # TODO: more events:
+            else:
+                line = self.buf_write("{} WAS {}".format(who, event['membership']))
+            if hl:
+                self.buf.add_highlight(hl, line, 0, len(name))
         elif event['type'] == "m.room.message":
             name, hl = self.format_sender(event['sender'])
             msgtype = event['content'].get('msgtype', 'NONE')
@@ -137,21 +150,22 @@ class IPythonPlugin(object):
 
     @neovim.command("MatrixConnect", sync=True)
     def matrix_connect(self):
-        self.create_outbuf()
+        room = self.vim.vars["matrix_room"]
+        self.create_outbuf(room)
         self.create_sendbuf()
         token = self.vim.vars.get("matrix_token")
         user = self.vim.vars["matrix_user"]
         self.user = user
-        pw = self.vim.vars["matrix_passwd"]
         if token is not None:
             userid = self.vim.vars.get("matrix_userid")
-            self.client = MatrixClient("https://matrix.org", token=token, user_id=user)
+            self.client = MatrixClient("https://matrix.org", token=token, user_id=userid)
         else:
+            pw = self.vim.vars["matrix_passwd"]
             self.client = MatrixClient("https://matrix.org")
             token = self.client.login_with_password(username=user, password=pw)
             self.buf_write(token)
             self.buf_write(self.client.user_id)
-        self.room = self.client.join_room(self.vim.vars["matrix_room"])
+        self.room = self.client.join_room(room)
 
         self.room.add_listener(partial(self.vim.async_call, ExclusiveHandler(self.on_message)))
         self.client.start_listener_thread()
