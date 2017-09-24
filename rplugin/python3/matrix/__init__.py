@@ -111,7 +111,7 @@ class IPythonPlugin(object):
         if event['type'] == "m.room.member":
             name, hl = self.format_sender(event['sender'])
             displayname = event['content'].get('displayname') 
-            if displayname is not None:
+            if displayname is not None and hl != "FreenodeUser":
                 who = "{} ({})".format(name, displayname)
             else:
                 who = name
@@ -122,7 +122,7 @@ class IPythonPlugin(object):
                 # TODO: more events:
             else:
                 line = self.buf_write("{} WAS {}".format(who, event['membership']))
-            if hl:
+            if hl and hl != "FreenodeUser":
                 self.buf.add_highlight(hl, line, 0, len(name))
         elif event['type'] == "m.room.message":
             name, hl = self.format_sender(event['sender'])
