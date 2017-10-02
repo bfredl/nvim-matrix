@@ -17,9 +17,9 @@ endfunc
 
 func! _matrix_cr()
     if g:matrix_me
-        return "\<c-o>:call MatrixMe(getline('.'))\<cr>\<c-o>:call _matrix_setme(0)\<cr>\<c-o>dd"
+        return "\<c-o>:call MatrixMe(getline('.'))\<cr>\<c-o>:call _matrix_setme(0)\<cr>\<c-o>\"_dd"
     else
         " TODO: multiline mode, check <c-x> mode etc
-        return "\<c-o>:call MatrixSend(getline('.'))\<cr>\<c-o>dd"
+        return "\<c-o>:call MatrixSend(getline('.'))\<cr>\<c-o>\"_dd"
     end
 endfunc

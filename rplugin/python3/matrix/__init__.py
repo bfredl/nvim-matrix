@@ -65,6 +65,10 @@ class IPythonPlugin(object):
         buf = vim.current.buffer
         buf.options["swapfile"] = False
         buf.options["buftype"] = "nofile"
+        buf.options["buftype"] = "nofile"
+        # not implemented :(
+        #buf.options["winhl"] = "Normal:MatrixBg"
+        vim.command("setl winhl=Normal:MatrixBg")
         vim.command("inoremap <buffer> <silent> <expr> <cr> _matrix_cr()")
         buf.name = "[matrix-send]"
         self.sendbuf = buf
