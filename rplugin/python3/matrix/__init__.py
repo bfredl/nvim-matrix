@@ -119,13 +119,14 @@ class IPythonPlugin(object):
                 who = "{} ({})".format(name, displayname)
             else:
                 who = name
-            if event['membership'] == "join":
+            membership = event.get('membership')
+            if membership == "join":
                 line = self.buf_write("{0} joined".format(who))
-            elif event['membership'] == "leave":
+            elif membership == "leave":
                 line = self.buf_write("{0} left".format(who))
                 # TODO: more events:
             else:
-                line = self.buf_write("{} WAS {}".format(who, event['membership']))
+                line = self.buf_write("{} WAS {}".format(who, membership))
             if hl and hl != "FreenodeUser":
                 self.buf.add_highlight(hl, line, 0, len(name))
         elif event['type'] == "m.room.message":
