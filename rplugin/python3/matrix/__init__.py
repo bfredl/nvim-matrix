@@ -46,8 +46,10 @@ class IPythonPlugin(object):
         if self.buf is not None:
             return
         w0 = vim.current.window
-        vim.command("new")
         buf = vim.current.buffer
+        if buf.name != "" or buf.options["modified"]:
+            vim.command("new")
+            buf = vim.current.buffer
         buf.options["swapfile"] = False
         buf.options["buftype"] = "nofile"
         vim.command("set showbreak=")
@@ -153,9 +155,12 @@ class IPythonPlugin(object):
         else:
             self.buf_write(event['type'])
 
-    @neovim.command("MatrixConnect", sync=True)
-    def matrix_connect(self):
-        room = self.vim.vars["matrix_room"]
+    @neovim.command("MatrixConnect", sync=True, nargs='?')
+    def matrix_connect(self, args):
+        if args:
+            room = args[0]
+        else:
+            room = self.vim.vars["matrix_room"]
         self.create_outbuf(room)
         self.create_sendbuf()
         token = self.vim.vars.get("matrix_token")
